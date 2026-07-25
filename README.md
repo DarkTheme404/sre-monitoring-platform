@@ -1,101 +1,90 @@
 # SRE Monitoring Platform
 
-Платформа мониторинга и алертинга, построенная по практикам Google SRE.
+Go-based SRE monitoring and alerting platform implementing Google SRE practices.
 
-## Архитектура
+## Architecture
 
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  Services   │────▶│  Prometheus │────▶│  Alerting   │
-│  (metrics)  │     │  (scrape)   │     │  Engine     │
-└─────────────┘     └─────────────┘     └──────┬──────┘
-                                               │
-                    ┌──────────────────────────┼──────────┐
-                    │                          │          │
-               ┌────▼────┐              ┌──────▼──────┐  │
-               │  SLI/   │              │  Grafana    │  │
-               │  SLO    │              │  Dashboards │  │
-               └─────────┘              └─────────────┘  │
-                                                        │
-                                                   ┌────▼────┐
-                                                   │ Telegram│
-                                                   │ PagerDuty│
-                                                   └─────────┘
+┌─────────────┐     ┌─────────────────┐     ┌──────────────┐
+│  Collector   │────▶│  SLI Tracker    │────▶│  Alerting    │
+│  (scrape)   │     │  (windows)      │     │  Engine      │
+└─────────────┘     └─────────────────┘     └──────┬───────┘
+                                                   │
+                    ┌──────────────────────────────┤
+                    │                              │
+               ┌────▼─────┐              ┌─────────▼────────┐
+               │  HTTP    │              │  Prometheus      │
+               │  API     │              │  /metrics        │
+               └──────────┘              └──────────────────┘
 ```
 
-## Концепции SRE
+## Features
 
-### SLI (Service Level Indicator)
-- **Availability** — % успешных запросов
-- **Latency** — P50/P95/P99 задержка
-- **Throughput** — запросов в секунду
-- **Error Rate** — % ошибок
+### SLI/SLO Tracking
+- Window-based SLI recording (success/failure + latency)
+- Error budget calculation and remaining budget
+- Burn rate computation across observation windows
+- SLA percentage aggregation
 
-### SLO (Service Level Objective)
-- Целевой SLA: 99.9% доступности
-- Error Budget: 0.1% = 43.8 минут в месяц
+### Alerting Engine
+- Rule-based alerting with configurable conditions
+- Severity levels: info, warning, critical
+- Auto-resolution when conditions clear
+- Callback system for notifications
+- Built-in rules: `HighErrorRateRule`, `HighLatencyRule`, `ErrorBudgetBurnRule`
 
-### Error Budget
-```go
-// Проверка error budget
-sli := sli.NewSLI("api_availability", 0.001) // 99.9%
+### Metrics Collector
+- Periodic scraping of service metrics
+- Feeds metrics to SLI tracker and alerting engine
+- Pluggable `ServiceMetrics` interface
 
-if sli.ErrorBudgetRemaining() < 10 {
-    // Менее 10% бюджета — замедляем деплои
-    alertManager.Fire("error_budget_low")
-}
-```
+### HTTP API
+- `GET /api/v1/sli/{name}` — SLI metrics for a named service
+- `GET /api/v1/alerts` — active alerts
+- `GET /api/v1/health` — health check
+- `GET /metrics` — Prometheus metrics endpoint
 
-## Возможности
-
-### Мониторинг
-- SLI/SLO трекинг
-- Error budget burn rate
-- Multi-window alerting
-- Custom dashboards
-
-### Алертинг
-- Multi-window rules (5m + 1h)
-- Burn rate alerting
-- Severity levels (info/warning/critical)
-- Auto-resolution
-- Telegram/PagerDuty интеграция
-
-### Дашборды
-- Real-time метрики
-- Исторические графики
-- Comparison (week-over-week)
-- Capacity planning
-
-## Правила алертинга
-
-```go
-// Критический: error rate > 1% в течение 5 минут
-engine.AddRule(alerting.HighErrorRateRule(1.0))
-
-// Предупреждение: P99 latency > 500ms
-engine.AddRule(alerting.HighLatencyRule(500))
-
-// Error budget burn rate > 14.4x (бюджет сгорит за 1 час)
-engine.AddRule(alerting.ErrorBudgetBurnRule(14.4))
-```
-
-## Быстрый старт
+## Quick Start
 
 ```bash
-# Запуск
+# Run
 go run cmd/server/main.go
 
-# Просмотр SLI
+# Or with Docker
+docker build -t sre-monitoring-platform .
+docker run -p 9090:9090 sre-monitoring-platform
+
+# Query SLI
 curl http://localhost:9090/api/v1/sli/api_availability
+
+# Query alerts
+curl http://localhost:9090/api/v1/alerts
+
+# Health check
+curl http://localhost:9090/api/v1/health
 ```
 
-## Метрики
+## API Endpoints
 
-| Метрика | Описание |
-|---------|----------|
-| `sli_current` | Текущий SLI |
-| `slo_target` | Целевой SLO |
-| `error_budget_remaining` | Оставшийся error budget |
-| `burn_rate` | Скорость сжигания бюджета |
-| `alerts_active` | Количество активных алертов |
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/sli/{name}` | GET | SLI metrics (error rate, budget, burn rate, SLA) |
+| `/api/v1/alerts` | GET | List active alerts |
+| `/api/v1/health` | GET | Health status |
+| `/metrics` | GET | Prometheus metrics |
+
+## Project Structure
+
+```
+cmd/server/main.go          — HTTP server with graceful shutdown
+internal/api/handler.go     — HTTP handlers
+internal/collector/collector.go — Metrics collector
+internal/sli/sli.go         — SLI/SLO calculations
+internal/alerting/engine.go — Alerting engine
+```
+
+## Configuration
+
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `LISTEN_ADDR` | `:9090` | Server listen address |
