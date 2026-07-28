@@ -92,7 +92,6 @@ func (e *Engine) fireAlert(rule Rule) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	// Проверяем, нет ли уже активного алерта
 	if existing, ok := e.alerts[rule.Name]; ok && !existing.Resolved {
 		return
 	}
@@ -115,7 +114,6 @@ func (e *Engine) fireAlert(rule Rule) {
 		zap.String("severity", string(alert.Severity)),
 	)
 
-	// Уведомляем подписчиков
 	for _, cb := range e.callbacks {
 		cb(alert)
 	}
@@ -157,8 +155,6 @@ func (e *Engine) ActiveAlerts() []Alert {
 	}
 	return result
 }
-
-// --- Готовые правила ---
 
 // HighErrorRateRule — алерт при высоком % ошибок.
 func HighErrorRateRule(threshold float64) Rule {

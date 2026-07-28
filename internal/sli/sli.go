@@ -6,7 +6,6 @@ import (
 )
 
 // SLI — Service Level Indicator.
-// Отслеживает ключевые метрики доступности сервиса.
 type SLI struct {
 	name       string
 	windows    []Window
@@ -36,12 +35,10 @@ func (s *SLI) Record(success bool, latency time.Duration) {
 	now := time.Now()
 	windowSize := 5 * time.Minute
 
-	// Ищем или создаём окно
 	var last *Window
 	if len(s.windows) > 0 {
 		last = &s.windows[len(s.windows)-1]
 		if now.Sub(last.Start) > windowSize {
-			// Новое окно
 			s.windows = append(s.windows, Window{
 				Start: now,
 				End:   now.Add(windowSize),
@@ -97,13 +94,11 @@ func (s *SLI) IsHealthy() bool {
 }
 
 // BurnRate вычисляет скорость сжигания error budget.
-// burn rate > 1 означает, что budget сгорает быстрее нормы.
 func (s *SLI) BurnRate() float64 {
 	if len(s.windows) < 2 {
 		return 0
 	}
 
-	// Сравниваем последние 2 окна
 	prev := s.windows[len(s.windows)-2]
 	curr := s.windows[len(s.windows)-1]
 
